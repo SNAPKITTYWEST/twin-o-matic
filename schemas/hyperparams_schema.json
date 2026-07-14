@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TOM Hyperparameter Config",
+  "type": "object",
+  "required": ["temperature", "top_p"],
+  "properties": {
+    "temperature": { "type": "number", "minimum": 0.0, "maximum": 2.0, "default": 0.7 },
+    "top_p": { "type": "number", "minimum": 0.0, "maximum": 1.0, "default": 0.9 },
+    "logit_bias": {
+      "type": "object",
+      "description": "token_id -> bias (-100 to 100). Negative = suppress, positive = boost.",
+      "additionalProperties": { "type": "number", "minimum": -100, "maximum": 100 }
+    },
+    "max_tokens": { "type": "integer", "minimum": 1, "default": 2048 }
+  }
+}

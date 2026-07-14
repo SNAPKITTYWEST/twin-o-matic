@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TOM Outer Loop Output",
+  "type": "object",
+  "required": ["generation", "failure_class", "analysis", "inner_prompt_patch", "hyperparams", "worm_note"],
+  "properties": {
+    "generation": { "type": "integer", "minimum": 0 },
+    "failure_class": { "type": "string", "enum": ["A", "B", "C", "D", "PASS"] },
+    "analysis": { "type": "string" },
+    "inner_prompt_patch": { "type": "string" },
+    "hyperparams": {
+      "type": "object",
+      "required": ["temperature", "top_p"],
+      "properties": {
+        "temperature": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "top_p": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "logit_bias": { "type": "object" }
+      }
+    },
+    "worm_note": { "type": "string" }
+  }
+}
