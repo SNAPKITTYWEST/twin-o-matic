@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Twin-O-Matic — JIT Proof Lab</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121826; --panel2: #0e1420; --line: #1f2a3a;
+    --ink: #d7e2f0; --dim: #8294ad; --accent: #5ad1c4; --warn: #ffb454;
+    --bad: #ff6b6b; --ok: #5ad17a; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --purple: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+  header {
+    padding: 16px 22px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header .tag { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  main { padding: 18px 22px; max-width: 1100px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 18px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin: 0 0 12px; }
+  textarea {
+    width: 100%; min-height: 200px; resize: vertical; background: var(--panel2);
+    color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; font: 13px/1.5 var(--mono); outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button {
+    background: #16203200; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); color: #06231f; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { background: #7ae8dc; }
+  .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  .row label { color: var(--dim); min-width: 92px; font-size: 12px; }
+  input[type=text], input[type=number] {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 9px; font: 13px var(--mono); flex: 1; min-width: 120px;
+    outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  .out {
+    font: 13px/1.55 var(--mono); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; min-height: 20px;
+    max-height: 300px; overflow-y: auto;
+  }
+  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-family: var(--mono); border: 1px solid var(--line); margin: 2px; }
+  .pill.ok { color: var(--ok); border-color: #1f5e36; }
+  .pill.bad { color: var(--bad); border-color: #5e1f1f; }
+  .pill.warn { color: var(--warn); border-color: #5e431f; }
+  .pill.info { color: var(--purple); border-color: #3d2f6b; }
+  .meta { color: var(--dim); font-size: 12px; margin-top: 6px; }
+  .status-line { margin: 6px 0; }
+  .engine-state { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  .engine-state.ok { color: var(--ok); }
+
+  /* WORM chain display */
+  .chain-entry {
+    padding: 6px 8px; border-bottom: 1px solid var(--line);
+    font: 12px/1.4 var(--mono); display: flex; justify-content: space-between; align-items: center;
+  }
+  .chain-entry:last-child { border-bottom: none; }
+  .chain-entry .gen { color: var(--accent); min-width: 50px; }
+  .chain-entry .seal { color: var(--dim); }
+  .chain-entry .result { font-size: 11px; }
+  .chain-entry .result.pass { color: var(--ok); }
+  .chain-entry .result.fail { color: var(--bad); }
+
+  /* Generation runner */
+  .gen-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .gen-controls input { max-width: 200px; }
+  .progress-bar { height: 4px; background: var(--panel2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width 0.3s; width: 0%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Twin-O-Matic</h1>
+  <span class="tag">JIT proof lab</span>
+  <span class="sub">Recursive self-improvement · Goldilocks field · WORM chain · Lean verifier</span>
+</header>
+
+<main>
+  <div id="boot" class="engine-state">Booting engine...</div>
+
+  <!-- TOM Runner -->
+  <div class="card">
+    <h2>TOM Generation Runner</h2>
+    <div class="gen-controls">
+      <input type="text" id="tom-task" value="prove x^2 >= 0 in Lean 4" placeholder="task..." />
+      <input type="number" id="tom-gens" value="5" min="1" max="50" style="max-width:60px" />
+      <label style="color:var(--dim);font-size:12px">generations</label>
+      <button class="primary" id="tom-run">Run TOM</button>
+      <button id="tom-clear">Clear</button>
+    </div>
+    <div class="progress-bar"><div class="progress-bar-fill" id="tom-bar"></div></div>
+    <div class="out" id="tom-out" style="min-height:100px">Ready. Enter a task and hit Run TOM.</div>
+  </div>
+
+  <div class="grid">
+    <!-- Lean Verifier -->
+    <section class="card">
+      <h2>Lean Buffer Verifier</h2>
+      <div class="toolbar">
+        <button class="primary" id="lean-run">Verify</button>
+        <button id="lean-sample">Load sample</button>
+        <button id="lean-hash">SHA-256</button>
+      </div>
+      <textarea id="editor" spellcheck="false"></textarea>
+      <div class="status-line" id="lean-pills"></div>
+    </section>
+
+    <section class="card">
+      <h2>Lean Analysis</h2>
+      <div class="out" id="lean-out">-</div>
+      <div class="meta" id="lean-fp"></div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <!-- Goldilocks Field -->
+    <section class="card">
+      <h2>Goldilocks Field (p = 2^64 - 2^32 + 1)</h2>
+      <div class="row">
+        <label>a</label><input type="text" id="g-a" value="1337" />
+        <label>b</label><input type="text" id="g-b" value="42" />
+      </div>
+      <div class="toolbar">
+        <button id="g-add">a + b</button>
+        <button id="g-sub">a - b</button>
+        <button id="g-mul">a * b</button>
+        <button id="g-pow">a ^ b</button>
+        <button id="g-inv">a^-1</button>
+      </div>
+      <div class="out" id="g-out">-</div>
+      <div class="meta">Goldilocks prime: 18446744069414584321. All ops mod p. Inverse via Fermat's little theorem.</div>
+    </section>
+
+    <!-- Banach Contraction -->
+    <section class="card">
+      <h2>Banach Contraction Check</h2>
+      <div class="row"><label>||Xi||</label><input type="number" id="b-xi" value="0.20" step="0.01" /></div>
+      <div class="row"><label>||Lambda||</label><input type="number" id="b-lam" value="0.30" step="0.01" /></div>
+      <div class="row"><label>||T||</label><input type="number" id="b-t" value="0.90" step="0.01" /></div>
+      <div class="row"><label>epsilon</label><input type="number" id="b-eps" value="0.05" step="0.01" /></div>
+      <div class="toolbar"><button id="b-run" class="primary">Check q &lt; 1 - eps</button></div>
+      <div class="out" id="b-out">-</div>
+      <div class="meta">q = ||Xi|| + ||Lambda|| * ||T||. Contraction holds when q &lt; 1 - epsilon.</div>
+    </section>
+  </div>
+
+  <!-- SHA-256 -->
+  <div class="card">
+    <h2>SHA-256 Receipt</h2>
+    <div class="row"><label>input</label><input type="text" id="sha-in" value="twin-o-matic generation seal" style="flex:1" /></div>
+    <div class="toolbar"><button id="sha-go" class="primary">Hash</button></div>
+    <div class="out" id="sha-out">-</div>
+  </div>
+
+  <!-- WORM Chain -->
+  <div class="card">
+    <h2>WORM Chain (append-only sealed ledger)</h2>
+    <div class="toolbar">
+      <button id="worm-verify">Verify Chain</button>
+      <span id="worm-status" class="meta"></span>
+    </div>
+    <div id="worm-display" class="out" style="max-height:200px;overflow-y:auto">No entries yet. Run TOM to seal generations.</div>
+  </div>
+</main>
+
+<script type="module">
+  import { gfAdd, gfSub, gfMul, gfPow, gfInv, sha256, verifyLean, banachCheck, wormSeal, wormChain, wormVerify, simulateGeneration, P } from './src/engine.mjs';
+
+  const $ = id => document.getElementById(id);
+
+  // Boot
+  $('boot').textContent = `Engine online | p = ${P.toString()} | SHA-256 + Goldilocks + Lean + WORM`;
+  $('boot').classList.add('ok');
+
+  // --- Lean ---
+  const SAMPLE = `theorem square_nonneg (x : Real) : x ^ 2 >= 0 := by
+  apply sq_nonneg`;
+
+  function runLean() {
+    const text = $('editor').value;
+    const r = verifyLean(text);
+    const fp = sha256(text);
+    $('lean-out').textContent =
+      `lines:    ${r.lines}\n` +
+      `status:   ${r.status}\n` +
+      `sorry:    ${r.sorryCount}\n` +
+      `theorem:  ${r.hasTheorem}\n` +
+      `by:       ${r.hasBy}\n` +
+      `tactics:  ${r.hasTactic}`;
+    const pills = [];
+    if (r.sorryCount > 0) pills.push(`<span class="pill bad">proof-debt (${r.sorryCount} sorry)</span>`);
+    else if (r.status === 'candidate') pills.push(`<span class="pill ok">candidate closure</span>`);
+    else if (r.status === 'partial') pills.push(`<span class="pill warn">partial</span>`);
+    else pills.push(`<span class="pill info">infra</span>`);
+    if (r.hasTheorem) pills.push(`<span class="pill ok">declares theorem</span>`);
+    if (r.hasTactic) pills.push(`<span class="pill info">has tactics</span>`);
+    $('lean-pills').innerHTML = pills.join(' ');
+    $('lean-fp').textContent = 'sha256: ' + fp;
+  }
+
+  $('lean-run').onclick = runLean;
+  $('lean-sample').onclick = () => { $('editor').value = SAMPLE; runLean(); };
+  $('lean-hash').onclick = () => { $('sha-out').textContent = sha256($('editor').value); };
+  $('editor').value = SAMPLE;
+  runLean();
+
+  // --- Goldilocks ---
+  function num(id) { try { return BigInt($(id).value.trim()); } catch { return null; } }
+  function gRun(fn, label) {
+    const a = num('g-a'), b = num('g-b');
+    if (a === null || b === null) { $('g-out').textContent = 'invalid input'; return; }
+    try { $('g-out').textContent = `${label} = ${fn(a, b).toString()}`; }
+    catch (e) { $('g-out').textContent = 'error: ' + e.message; }
+  }
+  $('g-add').onclick = () => gRun(gfAdd, 'a + b');
+  $('g-sub').onclick = () => gRun(gfSub, 'a - b');
+  $('g-mul').onclick = () => gRun(gfMul, 'a * b');
+  $('g-pow').onclick = () => gRun(gfPow, 'a ^ b');
+  $('g-inv').onclick = () => { const a = num('g-a'); if (a === null) return; $('g-out').textContent = 'a^-1 = ' + gfInv(a).toString(); };
+
+  // --- Banach ---
+  $('b-run').onclick = () => {
+    const xi = parseFloat($('b-xi').value), lam = parseFloat($('b-lam').value),
+          t = parseFloat($('b-t').value), eps = parseFloat($('b-eps').value);
+    const r = banachCheck(xi, lam, t, eps);
+    $('b-out').textContent =
+      `q = ${r.q.toFixed(6)}\n` +
+      `1 - eps = ${r.bound.toFixed(6)}\n` +
+      (r.contractive ? 'CONTRACTIVE — q < 1 - eps' : 'NOT contractive — q >= 1 - eps');
+  };
+
+  // --- SHA-256 ---
+  $('sha-go').onclick = () => { $('sha-out').textContent = sha256($('sha-in').value); };
+
+  // --- TOM Runner ---
+  function renderChain() {
+    const c = wormChain();
+    if (c.length === 0) { $('worm-display').textContent = 'No entries yet.'; return; }
+    $('worm-display').innerHTML = c.map(e =>
+      `<div class="chain-entry">` +
+      `<span class="gen">gen-${e.generation || e.idx}</span>` +
+      `<span class="result ${e.success ? 'pass' : 'fail'}">${e.success ? 'PASS' : 'FAIL'}</span>` +
+      `<span class="seal">${e.seal.slice(0, 16)}...</span>` +
+      `</div>`
+    ).join('');
+  }
+
+  $('tom-run').onclick = async () => {
+    const task = $('tom-task').value.trim();
+    const gens = parseInt($('tom-gens').value) || 5;
+    if (!task) return;
+
+    $('tom-out').textContent = `TOM | task: ${task}\n     gens: ${gens}\n\n`;
+    $('tom-bar').style.width = '0%';
+
+    for (let g = 1; g <= gens; g++) {
+      await new Promise(r => setTimeout(r, 80)); // Visual pacing
+      const hp = { temperature: 0.7, top_p: 0.9 };
+      const { telemetry, record } = simulateGeneration(task, g, hp);
+
+      $('tom-bar').style.width = `${(g / gens) * 100}%`;
+      $('tom-out').textContent +=
+        `[gen ${g}/${gens}] ${telemetry.success ? 'PASS' : 'FAIL'} | ${telemetry.tokens} tok | seal: ${record.seal.slice(0, 16)}...\n` +
+        `  lesson: ${telemetry.lesson}\n`;
+      $('tom-out').scrollTop = $('tom-out').scrollHeight;
+    }
+
+    $('tom-out').textContent += `\nTOM complete. ${gens} generations sealed to WORM chain.`;
+    renderChain();
+  };
+
+  $('tom-clear').onclick = () => { $('tom-out').textContent = 'Ready.'; $('tom-bar').style.width = '0%'; };
+
+  // --- WORM verify ---
+  $('worm-verify').onclick = () => {
+    const r = wormVerify();
+    $('worm-status').textContent = r.valid
+      ? `Chain valid (${r.length} entries)`
+      : `BROKEN at index ${r.broken}`;
+    $('worm-status').style.color = r.valid ? 'var(--ok)' : 'var(--bad)';
+  };
+</script>
+</body>
+</html>
