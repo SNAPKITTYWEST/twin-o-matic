@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Twin-O-Matic — JIT Proof Lab</title>
+<title>Twin-O-Matic — JIT Browser LLM</title>
 <style>
   :root {
     --bg: #0b0f17; --panel: #121826; --panel2: #0e1420; --line: #1f2a3a;
@@ -24,19 +24,11 @@
   header .tag { color: var(--accent); font-family: var(--mono); font-size: 12px; }
   header .sub { color: var(--dim); font-size: 12px; }
   main { padding: 18px 22px; max-width: 1100px; margin: 0 auto; }
-  .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
-  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
   .card {
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
     padding: 14px 16px; margin-bottom: 18px;
   }
   .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin: 0 0 12px; }
-  textarea {
-    width: 100%; min-height: 200px; resize: vertical; background: var(--panel2);
-    color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
-    padding: 12px; font: 13px/1.5 var(--mono); outline: none;
-  }
-  textarea:focus { border-color: var(--accent); }
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   button {
     background: #16203200; color: var(--ink); border: 1px solid var(--line);
@@ -46,259 +38,356 @@
   button:hover { border-color: var(--accent); color: var(--accent); }
   button.primary { background: var(--accent); color: #06231f; border-color: var(--accent); font-weight: 600; }
   button.primary:hover { background: #7ae8dc; }
-  .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
-  .row label { color: var(--dim); min-width: 92px; font-size: 12px; }
-  input[type=text], input[type=number] {
-    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 9px; font: 13px var(--mono); flex: 1; min-width: 120px;
-    outline: none;
-  }
-  input:focus { border-color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
   .out {
     font: 13px/1.55 var(--mono); background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all; min-height: 20px;
-    max-height: 300px; overflow-y: auto;
+    border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all;
+    min-height: 60px; max-height: 400px; overflow-y: auto;
   }
-  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-family: var(--mono); border: 1px solid var(--line); margin: 2px; }
-  .pill.ok { color: var(--ok); border-color: #1f5e36; }
-  .pill.bad { color: var(--bad); border-color: #5e1f1f; }
-  .pill.warn { color: var(--warn); border-color: #5e431f; }
-  .pill.info { color: var(--purple); border-color: #3d2f6b; }
   .meta { color: var(--dim); font-size: 12px; margin-top: 6px; }
-  .status-line { margin: 6px 0; }
-  .engine-state { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
-  .engine-state.ok { color: var(--ok); }
-
-  /* WORM chain display */
-  .chain-entry {
-    padding: 6px 8px; border-bottom: 1px solid var(--line);
-    font: 12px/1.4 var(--mono); display: flex; justify-content: space-between; align-items: center;
+  .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+  .row label { color: var(--dim); min-width: 80px; font-size: 12px; }
+  input[type=text], input[type=number], textarea {
+    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 10px; font: 13px var(--mono); outline: none; width: 100%;
   }
-  .chain-entry:last-child { border-bottom: none; }
-  .chain-entry .gen { color: var(--accent); min-width: 50px; }
-  .chain-entry .seal { color: var(--dim); }
-  .chain-entry .result { font-size: 11px; }
-  .chain-entry .result.pass { color: var(--ok); }
-  .chain-entry .result.fail { color: var(--bad); }
+  input:focus, textarea:focus { border-color: var(--accent); }
+  textarea { min-height: 80px; resize: vertical; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
 
-  /* Generation runner */
-  .gen-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .gen-controls input { max-width: 200px; }
-  .progress-bar { height: 4px; background: var(--panel2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width 0.3s; width: 0%; }
+  .status-bar {
+    display: flex; gap: 16px; align-items: center; padding: 10px 22px;
+    border-bottom: 1px solid var(--line); font-size: 12px; flex-wrap: wrap;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.off { background: var(--bad); }
+  .dot.on { background: var(--ok); }
+  .dot.load { background: var(--warn); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+
+  .progress { height: 4px; background: var(--panel2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width 0.3s; width: 0%; }
+
+  .chat-input { display: flex; gap: 8px; }
+  .chat-input input { flex: 1; }
+
+  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-family: var(--mono); border: 1px solid var(--line); margin: 2px; }
+  .pill.ok { color: var(--ok); border-color: #1f5e36; }
+  .pill.info { color: var(--purple); border-color: #3d2f6b; }
 </style>
 </head>
 <body>
 <header>
   <h1>Twin-O-Matic</h1>
-  <span class="tag">JIT proof lab</span>
-  <span class="sub">Recursive self-improvement · Goldilocks field · WORM chain · Lean verifier</span>
+  <span class="tag">WebLLM · browser inference</span>
+  <span class="sub">Llama 3.2 1B running in your GPU — no server, no API keys</span>
 </header>
 
+<div class="status-bar">
+  <span><span class="dot load" id="gpuDot"></span><span id="gpuLabel">WebGPU: detecting...</span></span>
+  <span><span class="dot off" id="modelDot"></span><span id="modelLabel">Model: not loaded</span></span>
+  <span id="perfLabel" style="color:var(--dim)">-- tok/s</span>
+</div>
+
 <main>
-  <div id="boot" class="engine-state">Booting engine...</div>
+  <!-- Model Load -->
+  <div class="card" id="loadCard">
+    <h2>Model Engine</h2>
+    <div class="progress"><div class="progress-fill" id="loadBar"></div></div>
+    <div class="out" id="loadLog" style="min-height:40px;max-height:120px">Initializing WebLLM engine...</div>
+  </div>
 
-  <!-- TOM Runner -->
+  <!-- Chat / Inference -->
   <div class="card">
-    <h2>TOM Generation Runner</h2>
-    <div class="gen-controls">
-      <input type="text" id="tom-task" value="prove x^2 >= 0 in Lean 4" placeholder="task..." />
-      <input type="number" id="tom-gens" value="5" min="1" max="50" style="max-width:60px" />
-      <label style="color:var(--dim);font-size:12px">generations</label>
-      <button class="primary" id="tom-run">Run TOM</button>
-      <button id="tom-clear">Clear</button>
+    <h2>Inference</h2>
+    <div class="out" id="chatOut" style="min-height:200px">Model loading... prompt will be available once ready.</div>
+    <div style="margin-top:12px" class="chat-input">
+      <input type="text" id="prompt" placeholder="ask the model anything..." disabled />
+      <button class="primary" id="runBtn" disabled onclick="tom.infer()">run</button>
     </div>
-    <div class="progress-bar"><div class="progress-bar-fill" id="tom-bar"></div></div>
-    <div class="out" id="tom-out" style="min-height:100px">Ready. Enter a task and hit Run TOM.</div>
+    <div class="meta">Runs entirely in your browser via WebGPU. No data leaves your machine.</div>
   </div>
 
-  <div class="grid">
-    <!-- Lean Verifier -->
-    <section class="card">
-      <h2>Lean Buffer Verifier</h2>
-      <div class="toolbar">
-        <button class="primary" id="lean-run">Verify</button>
-        <button id="lean-sample">Load sample</button>
-        <button id="lean-hash">SHA-256</button>
-      </div>
-      <textarea id="editor" spellcheck="false"></textarea>
-      <div class="status-line" id="lean-pills"></div>
-    </section>
-
-    <section class="card">
-      <h2>Lean Analysis</h2>
-      <div class="out" id="lean-out">-</div>
-      <div class="meta" id="lean-fp"></div>
-    </section>
-  </div>
-
-  <div class="grid">
-    <!-- Goldilocks Field -->
-    <section class="card">
-      <h2>Goldilocks Field (p = 2^64 - 2^32 + 1)</h2>
-      <div class="row">
-        <label>a</label><input type="text" id="g-a" value="1337" />
-        <label>b</label><input type="text" id="g-b" value="42" />
-      </div>
-      <div class="toolbar">
-        <button id="g-add">a + b</button>
-        <button id="g-sub">a - b</button>
-        <button id="g-mul">a * b</button>
-        <button id="g-pow">a ^ b</button>
-        <button id="g-inv">a^-1</button>
-      </div>
-      <div class="out" id="g-out">-</div>
-      <div class="meta">Goldilocks prime: 18446744069414584321. All ops mod p. Inverse via Fermat's little theorem.</div>
-    </section>
-
-    <!-- Banach Contraction -->
-    <section class="card">
-      <h2>Banach Contraction Check</h2>
-      <div class="row"><label>||Xi||</label><input type="number" id="b-xi" value="0.20" step="0.01" /></div>
-      <div class="row"><label>||Lambda||</label><input type="number" id="b-lam" value="0.30" step="0.01" /></div>
-      <div class="row"><label>||T||</label><input type="number" id="b-t" value="0.90" step="0.01" /></div>
-      <div class="row"><label>epsilon</label><input type="number" id="b-eps" value="0.05" step="0.01" /></div>
-      <div class="toolbar"><button id="b-run" class="primary">Check q &lt; 1 - eps</button></div>
-      <div class="out" id="b-out">-</div>
-      <div class="meta">q = ||Xi|| + ||Lambda|| * ||T||. Contraction holds when q &lt; 1 - epsilon.</div>
-    </section>
-  </div>
-
-  <!-- SHA-256 -->
+  <!-- TOM Loop -->
   <div class="card">
-    <h2>SHA-256 Receipt</h2>
-    <div class="row"><label>input</label><input type="text" id="sha-in" value="twin-o-matic generation seal" style="flex:1" /></div>
-    <div class="toolbar"><button id="sha-go" class="primary">Hash</button></div>
-    <div class="out" id="sha-out">-</div>
+    <h2>TOM Recursive Loop (uses browser LLM)</h2>
+    <div class="row">
+      <label>Task</label>
+      <input type="text" id="tomTask" value="write a Python function to check if a number is prime" />
+    </div>
+    <div class="row">
+      <label>Generations</label>
+      <input type="number" id="tomGens" value="3" min="1" max="10" style="max-width:60px" />
+    </div>
+    <div class="toolbar">
+      <button class="primary" id="tomRun" disabled onclick="tom.runTOM()">Run TOM</button>
+      <button onclick="tom.clearTOM()">Clear</button>
+    </div>
+    <div class="progress"><div class="progress-fill" id="tomBar"></div></div>
+    <div class="out" id="tomOut" style="min-height:120px">Load model first, then run TOM generations.</div>
+  </div>
+
+  <div class="grid">
+    <!-- Goldilocks -->
+    <div class="card">
+      <h2>Goldilocks Field (p = 2^64 - 2^32 + 1)</h2>
+      <div class="row"><label>a</label><input type="text" id="ga" value="1337" style="max-width:200px" /></div>
+      <div class="row"><label>b</label><input type="text" id="gb" value="42" style="max-width:200px" /></div>
+      <div class="toolbar">
+        <button onclick="tom.gf('add')">a+b</button>
+        <button onclick="tom.gf('sub')">a-b</button>
+        <button onclick="tom.gf('mul')">a*b</button>
+        <button onclick="tom.gf('pow')">a^b</button>
+        <button onclick="tom.gf('inv')">a^-1</button>
+      </div>
+      <div class="out" id="gfOut">-</div>
+    </div>
+
+    <!-- SHA-256 -->
+    <div class="card">
+      <h2>SHA-256 Seal</h2>
+      <div class="row"><input type="text" id="shaIn" value="twin-o-matic generation seal" /></div>
+      <div class="toolbar"><button class="primary" onclick="tom.hash()">Hash</button></div>
+      <div class="out" id="shaOut">-</div>
+      <div class="meta">Pure JS SHA-256. Used to WORM-seal each TOM generation.</div>
+    </div>
   </div>
 
   <!-- WORM Chain -->
   <div class="card">
-    <h2>WORM Chain (append-only sealed ledger)</h2>
-    <div class="toolbar">
-      <button id="worm-verify">Verify Chain</button>
-      <span id="worm-status" class="meta"></span>
-    </div>
-    <div id="worm-display" class="out" style="max-height:200px;overflow-y:auto">No entries yet. Run TOM to seal generations.</div>
+    <h2>WORM Chain</h2>
+    <div class="out" id="wormOut">No seals yet. Run TOM to generate.</div>
   </div>
 </main>
 
 <script type="module">
-  import { gfAdd, gfSub, gfMul, gfPow, gfInv, sha256, verifyLean, banachCheck, wormSeal, wormChain, wormVerify, simulateGeneration, P } from './src/engine.mjs';
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+import { gfAdd, gfSub, gfMul, gfPow, gfInv, sha256, wormSeal, wormChain, P } from './src/engine.mjs';
 
-  const $ = id => document.getElementById(id);
-
-  // Boot
-  $('boot').textContent = `Engine online | p = ${P.toString()} | SHA-256 + Goldilocks + Lean + WORM`;
-  $('boot').classList.add('ok');
-
-  // --- Lean ---
-  const SAMPLE = `theorem square_nonneg (x : Real) : x ^ 2 >= 0 := by
-  apply sq_nonneg`;
-
-  function runLean() {
-    const text = $('editor').value;
-    const r = verifyLean(text);
-    const fp = sha256(text);
-    $('lean-out').textContent =
-      `lines:    ${r.lines}\n` +
-      `status:   ${r.status}\n` +
-      `sorry:    ${r.sorryCount}\n` +
-      `theorem:  ${r.hasTheorem}\n` +
-      `by:       ${r.hasBy}\n` +
-      `tactics:  ${r.hasTactic}`;
-    const pills = [];
-    if (r.sorryCount > 0) pills.push(`<span class="pill bad">proof-debt (${r.sorryCount} sorry)</span>`);
-    else if (r.status === 'candidate') pills.push(`<span class="pill ok">candidate closure</span>`);
-    else if (r.status === 'partial') pills.push(`<span class="pill warn">partial</span>`);
-    else pills.push(`<span class="pill info">infra</span>`);
-    if (r.hasTheorem) pills.push(`<span class="pill ok">declares theorem</span>`);
-    if (r.hasTactic) pills.push(`<span class="pill info">has tactics</span>`);
-    $('lean-pills').innerHTML = pills.join(' ');
-    $('lean-fp').textContent = 'sha256: ' + fp;
+class TwinOMatic {
+  constructor() {
+    this.engine = null;
+    this.ready = false;
+    this.boot();
   }
 
-  $('lean-run').onclick = runLean;
-  $('lean-sample').onclick = () => { $('editor').value = SAMPLE; runLean(); };
-  $('lean-hash').onclick = () => { $('sha-out').textContent = sha256($('editor').value); };
-  $('editor').value = SAMPLE;
-  runLean();
-
-  // --- Goldilocks ---
-  function num(id) { try { return BigInt($(id).value.trim()); } catch { return null; } }
-  function gRun(fn, label) {
-    const a = num('g-a'), b = num('g-b');
-    if (a === null || b === null) { $('g-out').textContent = 'invalid input'; return; }
-    try { $('g-out').textContent = `${label} = ${fn(a, b).toString()}`; }
-    catch (e) { $('g-out').textContent = 'error: ' + e.message; }
-  }
-  $('g-add').onclick = () => gRun(gfAdd, 'a + b');
-  $('g-sub').onclick = () => gRun(gfSub, 'a - b');
-  $('g-mul').onclick = () => gRun(gfMul, 'a * b');
-  $('g-pow').onclick = () => gRun(gfPow, 'a ^ b');
-  $('g-inv').onclick = () => { const a = num('g-a'); if (a === null) return; $('g-out').textContent = 'a^-1 = ' + gfInv(a).toString(); };
-
-  // --- Banach ---
-  $('b-run').onclick = () => {
-    const xi = parseFloat($('b-xi').value), lam = parseFloat($('b-lam').value),
-          t = parseFloat($('b-t').value), eps = parseFloat($('b-eps').value);
-    const r = banachCheck(xi, lam, t, eps);
-    $('b-out').textContent =
-      `q = ${r.q.toFixed(6)}\n` +
-      `1 - eps = ${r.bound.toFixed(6)}\n` +
-      (r.contractive ? 'CONTRACTIVE — q < 1 - eps' : 'NOT contractive — q >= 1 - eps');
-  };
-
-  // --- SHA-256 ---
-  $('sha-go').onclick = () => { $('sha-out').textContent = sha256($('sha-in').value); };
-
-  // --- TOM Runner ---
-  function renderChain() {
-    const c = wormChain();
-    if (c.length === 0) { $('worm-display').textContent = 'No entries yet.'; return; }
-    $('worm-display').innerHTML = c.map(e =>
-      `<div class="chain-entry">` +
-      `<span class="gen">gen-${e.generation || e.idx}</span>` +
-      `<span class="result ${e.success ? 'pass' : 'fail'}">${e.success ? 'PASS' : 'FAIL'}</span>` +
-      `<span class="seal">${e.seal.slice(0, 16)}...</span>` +
-      `</div>`
-    ).join('');
+  log(id, text, append = true) {
+    const el = document.getElementById(id);
+    if (append) el.textContent += text + '\n';
+    else el.textContent = text;
+    el.scrollTop = el.scrollHeight;
   }
 
-  $('tom-run').onclick = async () => {
-    const task = $('tom-task').value.trim();
-    const gens = parseInt($('tom-gens').value) || 5;
-    if (!task) return;
+  async boot() {
+    const loadLog = document.getElementById('loadLog');
+    const loadBar = document.getElementById('loadBar');
 
-    $('tom-out').textContent = `TOM | task: ${task}\n     gens: ${gens}\n\n`;
-    $('tom-bar').style.width = '0%';
-
-    for (let g = 1; g <= gens; g++) {
-      await new Promise(r => setTimeout(r, 80)); // Visual pacing
-      const hp = { temperature: 0.7, top_p: 0.9 };
-      const { telemetry, record } = simulateGeneration(task, g, hp);
-
-      $('tom-bar').style.width = `${(g / gens) * 100}%`;
-      $('tom-out').textContent +=
-        `[gen ${g}/${gens}] ${telemetry.success ? 'PASS' : 'FAIL'} | ${telemetry.tokens} tok | seal: ${record.seal.slice(0, 16)}...\n` +
-        `  lesson: ${telemetry.lesson}\n`;
-      $('tom-out').scrollTop = $('tom-out').scrollHeight;
+    // Detect WebGPU
+    if (navigator.gpu) {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (adapter) {
+        const info = await adapter.requestAdapterInfo?.() || {};
+        document.getElementById('gpuDot').className = 'dot on';
+        document.getElementById('gpuLabel').textContent = `WebGPU: ${info.description || info.vendor || 'ready'}`;
+      }
+    } else {
+      document.getElementById('gpuDot').className = 'dot off';
+      document.getElementById('gpuLabel').textContent = 'WebGPU: not available (needs Chrome/Edge)';
+      this.log('loadLog', 'ERROR: WebGPU not available. Need Chrome 113+ or Edge 113+.', false);
+      return;
     }
 
-    $('tom-out').textContent += `\nTOM complete. ${gens} generations sealed to WORM chain.`;
-    renderChain();
-  };
+    // Load model
+    try {
+      this.engine = await webllm.CreateMLCEngine(
+        "Llama-3.2-1B-Instruct-q4f16_1-MLC",
+        {
+          initProgressCallback: (progress) => {
+            const pct = Math.round((progress.progress || 0) * 100);
+            loadBar.style.width = pct + '%';
+            loadLog.textContent = progress.text || 'Loading...';
+          }
+        }
+      );
 
-  $('tom-clear').onclick = () => { $('tom-out').textContent = 'Ready.'; $('tom-bar').style.width = '0%'; };
+      document.getElementById('modelDot').className = 'dot on';
+      document.getElementById('modelLabel').textContent = 'Model: Llama-3.2-1B-q4f16';
+      loadLog.textContent = 'Model loaded. Inference ready.';
+      loadBar.style.width = '100%';
 
-  // --- WORM verify ---
-  $('worm-verify').onclick = () => {
-    const r = wormVerify();
-    $('worm-status').textContent = r.valid
-      ? `Chain valid (${r.length} entries)`
-      : `BROKEN at index ${r.broken}`;
-    $('worm-status').style.color = r.valid ? 'var(--ok)' : 'var(--bad)';
-  };
+      document.getElementById('prompt').disabled = false;
+      document.getElementById('runBtn').disabled = false;
+      document.getElementById('tomRun').disabled = false;
+      this.ready = true;
+
+      document.getElementById('chatOut').textContent = 'Ready. Type a prompt and hit run.\n';
+      document.getElementById('tomOut').textContent = 'Model loaded. Enter a task and hit Run TOM.\n';
+
+      // Enter key
+      document.getElementById('prompt').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.infer();
+      });
+
+    } catch (err) {
+      document.getElementById('modelDot').className = 'dot off';
+      document.getElementById('modelLabel').textContent = 'Model: FAILED';
+      loadLog.textContent = 'Failed: ' + err.message;
+      document.getElementById('chatOut').textContent = 'Model failed to load: ' + err.message;
+    }
+  }
+
+  async infer() {
+    if (!this.ready) return;
+    const input = document.getElementById('prompt');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const out = document.getElementById('chatOut');
+    out.textContent += `\n> ${text}\n`;
+
+    document.getElementById('runBtn').disabled = true;
+    const t0 = performance.now();
+
+    try {
+      const response = await this.engine.chat.completions.create({
+        messages: [
+          { role: "system", content: "You are a sovereign AI agent running locally in a browser via WebGPU. Be concise and technical." },
+          { role: "user", content: text }
+        ],
+        temperature: 0.7,
+        max_tokens: 512,
+        stream: true
+      });
+
+      let full = '';
+      let tokens = 0;
+      out.textContent += '\n';
+      for await (const chunk of response) {
+        const delta = chunk.choices[0]?.delta?.content || '';
+        full += delta;
+        tokens++;
+        out.textContent = out.textContent.replace(/\n$/, '') + delta;
+        out.scrollTop = out.scrollHeight;
+      }
+      out.textContent += '\n';
+
+      const ms = performance.now() - t0;
+      const tps = (tokens / (ms / 1000)).toFixed(1);
+      document.getElementById('perfLabel').textContent = `${tps} tok/s`;
+      out.textContent += `[${tokens} tokens | ${Math.round(ms)}ms | ${tps} tok/s]\n`;
+
+    } catch (err) {
+      out.textContent += `ERROR: ${err.message}\n`;
+    }
+
+    document.getElementById('runBtn').disabled = false;
+    out.scrollTop = out.scrollHeight;
+  }
+
+  async runTOM() {
+    if (!this.ready) return;
+    const task = document.getElementById('tomTask').value.trim();
+    const gens = parseInt(document.getElementById('tomGens').value) || 3;
+    if (!task) return;
+
+    document.getElementById('tomRun').disabled = true;
+    const out = document.getElementById('tomOut');
+    const bar = document.getElementById('tomBar');
+    out.textContent = `TOM | task: "${task}" | generations: ${gens}\n\n`;
+
+    let lessonAccum = '';
+
+    for (let g = 1; g <= gens; g++) {
+      bar.style.width = `${((g - 0.5) / gens) * 100}%`;
+      out.textContent += `[gen ${g}/${gens}] running inner loop...\n`;
+      out.scrollTop = out.scrollHeight;
+
+      const innerPrompt = lessonAccum
+        ? `Task: ${task}\n\nPrevious lessons learned:\n${lessonAccum}\n\nProduce the best solution. End with LESSON: <one sentence about what you learned>.`
+        : `Task: ${task}\n\nProduce a solution. End with LESSON: <one sentence about what you learned>.`;
+
+      try {
+        const t0 = performance.now();
+        const resp = await this.engine.chat.completions.create({
+          messages: [
+            { role: "system", content: "You are an AI executing tasks in a recursive self-improvement loop. Each generation you get lessons from prior attempts. Improve each time. Always end your response with LESSON: <insight>." },
+            { role: "user", content: innerPrompt }
+          ],
+          temperature: 0.7 - (g * 0.05), // cool down over generations
+          max_tokens: 300
+        });
+
+        const answer = resp.choices[0].message.content;
+        const ms = performance.now() - t0;
+        const tokens = answer.split(' ').length;
+
+        // Extract lesson
+        const lessonMatch = answer.match(/LESSON:\s*(.+)/i);
+        const lesson = lessonMatch ? lessonMatch[1].trim() : 'no explicit lesson';
+        lessonAccum += `- gen ${g}: ${lesson}\n`;
+
+        // WORM seal
+        const record = wormSeal({ type: 'tom-gen', generation: g, task: task.slice(0, 60), tokens, ms: Math.round(ms), lesson });
+
+        out.textContent += `  response: ${answer.slice(0, 120)}...\n`;
+        out.textContent += `  lesson: ${lesson}\n`;
+        out.textContent += `  seal: ${record.seal.slice(0, 20)}... | ${tokens} tok | ${Math.round(ms)}ms\n\n`;
+
+      } catch (err) {
+        out.textContent += `  ERROR: ${err.message}\n\n`;
+      }
+
+      bar.style.width = `${(g / gens) * 100}%`;
+      out.scrollTop = out.scrollHeight;
+    }
+
+    out.textContent += `TOM complete. ${gens} generations sealed.\n`;
+    this.renderWorm();
+    document.getElementById('tomRun').disabled = false;
+  }
+
+  clearTOM() {
+    document.getElementById('tomOut').textContent = 'Cleared.\n';
+    document.getElementById('tomBar').style.width = '0%';
+  }
+
+  renderWorm() {
+    const chain = wormChain();
+    if (!chain.length) { document.getElementById('wormOut').textContent = 'No seals yet.'; return; }
+    document.getElementById('wormOut').textContent = chain.map(e =>
+      `[${e.idx}] gen-${e.generation || '?'} | ${e.lesson || '-'} | seal: ${e.seal.slice(0, 24)}...`
+    ).join('\n');
+  }
+
+  // Goldilocks
+  gf(op) {
+    try {
+      const a = BigInt(document.getElementById('ga').value.trim());
+      const b = BigInt(document.getElementById('gb').value.trim());
+      let result;
+      switch(op) {
+        case 'add': result = gfAdd(a, b); break;
+        case 'sub': result = gfSub(a, b); break;
+        case 'mul': result = gfMul(a, b); break;
+        case 'pow': result = gfPow(a, b); break;
+        case 'inv': result = gfInv(a); break;
+      }
+      document.getElementById('gfOut').textContent = result.toString();
+    } catch (e) {
+      document.getElementById('gfOut').textContent = 'error: ' + e.message;
+    }
+  }
+
+  // SHA-256
+  hash() {
+    const input = document.getElementById('shaIn').value;
+    document.getElementById('shaOut').textContent = sha256(input);
+  }
+}
+
+window.tom = new TwinOMatic();
 </script>
 </body>
 </html>
