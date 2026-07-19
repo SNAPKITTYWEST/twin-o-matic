@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Twin-O-Matic — JIT Browser LLM</title>
+<title>Twin-O-Matic — JIT Browser LLM + 3D Engine</title>
 <style>
   :root {
     --bg: #0b0f17; --panel: #121826; --panel2: #0e1420; --line: #1f2a3a;
@@ -17,47 +17,15 @@
     font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
   header {
-    padding: 16px 22px; border-bottom: 1px solid var(--line);
+    padding: 12px 22px; border-bottom: 1px solid var(--line);
     display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
   }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header h1 { font-size: 18px; margin: 0; }
   header .tag { color: var(--accent); font-family: var(--mono); font-size: 12px; }
   header .sub { color: var(--dim); font-size: 12px; }
-  main { padding: 18px 22px; max-width: 1100px; margin: 0 auto; }
-  .card {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px 16px; margin-bottom: 18px;
-  }
-  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--dim); margin: 0 0 12px; }
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  button {
-    background: #16203200; color: var(--ink); border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px;
-    transition: border-color 0.2s, color 0.2s;
-  }
-  button:hover { border-color: var(--accent); color: var(--accent); }
-  button.primary { background: var(--accent); color: #06231f; border-color: var(--accent); font-weight: 600; }
-  button.primary:hover { background: #7ae8dc; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .out {
-    font: 13px/1.55 var(--mono); background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; word-break: break-all;
-    min-height: 60px; max-height: 400px; overflow-y: auto;
-  }
-  .meta { color: var(--dim); font-size: 12px; margin-top: 6px; }
-  .row { display: flex; gap: 10px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
-  .row label { color: var(--dim); min-width: 80px; font-size: 12px; }
-  input[type=text], input[type=number], textarea {
-    background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; padding: 8px 10px; font: 13px var(--mono); outline: none; width: 100%;
-  }
-  input:focus, textarea:focus { border-color: var(--accent); }
-  textarea { min-height: 80px; resize: vertical; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
 
   .status-bar {
-    display: flex; gap: 16px; align-items: center; padding: 10px 22px;
+    display: flex; gap: 16px; align-items: center; padding: 8px 22px;
     border-bottom: 1px solid var(--line); font-size: 12px; flex-wrap: wrap;
   }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -66,122 +34,403 @@
   .dot.load { background: var(--warn); animation: pulse 1s infinite; }
   @keyframes pulse { 50% { opacity: 0.4; } }
 
-  .progress { height: 4px; background: var(--panel2); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+  .shell {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    height: calc(100vh - 90px); min-height: 500px;
+  }
+  @media (max-width: 900px) { .shell { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+
+  /* Left: 3D viewport */
+  .viewport {
+    position: relative; border-right: 1px solid var(--line);
+    background: #000; overflow: hidden;
+  }
+  .viewport canvas { width: 100% !important; height: 100% !important; display: block; }
+  .viewport-overlay {
+    position: absolute; top: 10px; left: 10px; right: 10px;
+    display: flex; justify-content: space-between; pointer-events: none;
+    font: 11px var(--mono); color: var(--dim);
+  }
+  .viewport-overlay .fps { color: var(--ok); }
+  .scene-tools {
+    position: absolute; bottom: 10px; left: 10px; right: 10px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .scene-tools button {
+    background: rgba(18, 24, 38, 0.85); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer;
+    pointer-events: all;
+  }
+  .scene-tools button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Right: terminal + input */
+  .right-panel {
+    display: flex; flex-direction: column; min-height: 0;
+  }
+
+  .progress { height: 3px; background: var(--panel2); overflow: hidden; flex-shrink: 0; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple)); transition: width 0.3s; width: 0%; }
 
-  .chat-input { display: flex; gap: 8px; }
-  .chat-input input { flex: 1; }
+  .terminal {
+    flex: 1; overflow-y: auto; padding: 14px; font: 13px/1.5 var(--mono);
+    background: var(--panel2); min-height: 0;
+  }
+  .terminal::-webkit-scrollbar { width: 6px; }
+  .terminal::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 
-  .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-family: var(--mono); border: 1px solid var(--line); margin: 2px; }
-  .pill.ok { color: var(--ok); border-color: #1f5e36; }
-  .pill.info { color: var(--purple); border-color: #3d2f6b; }
+  .line { margin-bottom: 3px; white-space: pre-wrap; word-break: break-word; }
+  .line.sys { color: var(--dim); }
+  .line.usr { color: var(--accent); }
+  .line.llm { color: var(--ink); }
+  .line.tool { color: var(--purple); }
+  .line.perf { color: var(--warn); font-size: 11px; }
+  .line.err { color: var(--bad); }
+
+  .input-bar {
+    display: flex; gap: 8px; padding: 12px 14px;
+    background: var(--panel); border-top: 1px solid var(--line); flex-shrink: 0;
+  }
+  .input-bar input {
+    flex: 1; background: var(--panel2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 12px; font: 13px var(--mono); outline: none;
+  }
+  .input-bar input:focus { border-color: var(--accent); }
+  .input-bar button {
+    padding: 8px 16px; background: var(--accent); color: #06231f; border: none;
+    border-radius: 6px; font: 13px/1 var(--mono); font-weight: 600; cursor: pointer;
+  }
+  .input-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .input-bar button:hover:not(:disabled) { background: #7ae8dc; }
 </style>
 </head>
 <body>
 <header>
   <h1>Twin-O-Matic</h1>
-  <span class="tag">WebLLM · browser inference</span>
-  <span class="sub">Llama 3.2 1B running in your GPU — no server, no API keys</span>
+  <span class="tag">WebLLM + Three.js</span>
+  <span class="sub">LLM with tools — creates live 3D scenes from prompts</span>
 </header>
 
 <div class="status-bar">
-  <span><span class="dot load" id="gpuDot"></span><span id="gpuLabel">WebGPU: detecting...</span></span>
-  <span><span class="dot off" id="modelDot"></span><span id="modelLabel">Model: not loaded</span></span>
+  <span><span class="dot load" id="gpuDot"></span><span id="gpuLabel">WebGPU</span></span>
+  <span><span class="dot off" id="modelDot"></span><span id="modelLabel">Model</span></span>
+  <span><span class="dot on" id="sceneDot"></span><span id="sceneLabel">3D Engine</span></span>
   <span id="perfLabel" style="color:var(--dim)">-- tok/s</span>
 </div>
 
-<main>
-  <!-- Model Load -->
-  <div class="card" id="loadCard">
-    <h2>Model Engine</h2>
+<div class="shell">
+  <!-- 3D Viewport -->
+  <div class="viewport" id="viewport">
+    <div class="viewport-overlay">
+      <span id="sceneInfo">objects: 0</span>
+      <span class="fps" id="fpsCounter">0 fps</span>
+    </div>
+    <div class="scene-tools">
+      <button onclick="tom.sceneCmd('reset')">reset scene</button>
+      <button onclick="tom.sceneCmd('spin')">toggle spin</button>
+      <button onclick="tom.sceneCmd('wireframe')">wireframe</button>
+      <button onclick="tom.sceneCmd('explode')">explode</button>
+      <button onclick="tom.sceneCmd('screenshot')">screenshot</button>
+    </div>
+  </div>
+
+  <!-- Right: Terminal -->
+  <div class="right-panel">
     <div class="progress"><div class="progress-fill" id="loadBar"></div></div>
-    <div class="out" id="loadLog" style="min-height:40px;max-height:120px">Initializing WebLLM engine...</div>
-  </div>
-
-  <!-- Chat / Inference -->
-  <div class="card">
-    <h2>Inference</h2>
-    <div class="out" id="chatOut" style="min-height:200px">Model loading... prompt will be available once ready.</div>
-    <div style="margin-top:12px" class="chat-input">
-      <input type="text" id="prompt" placeholder="ask the model anything..." disabled />
-      <button class="primary" id="runBtn" disabled onclick="tom.infer()">run</button>
-    </div>
-    <div class="meta">Runs entirely in your browser via WebGPU. No data leaves your machine.</div>
-  </div>
-
-  <!-- TOM Loop -->
-  <div class="card">
-    <h2>TOM Recursive Loop (uses browser LLM)</h2>
-    <div class="row">
-      <label>Task</label>
-      <input type="text" id="tomTask" value="write a Python function to check if a number is prime" />
-    </div>
-    <div class="row">
-      <label>Generations</label>
-      <input type="number" id="tomGens" value="3" min="1" max="10" style="max-width:60px" />
-    </div>
-    <div class="toolbar">
-      <button class="primary" id="tomRun" disabled onclick="tom.runTOM()">Run TOM</button>
-      <button onclick="tom.clearTOM()">Clear</button>
-    </div>
-    <div class="progress"><div class="progress-fill" id="tomBar"></div></div>
-    <div class="out" id="tomOut" style="min-height:120px">Load model first, then run TOM generations.</div>
-  </div>
-
-  <div class="grid">
-    <!-- Goldilocks -->
-    <div class="card">
-      <h2>Goldilocks Field (p = 2^64 - 2^32 + 1)</h2>
-      <div class="row"><label>a</label><input type="text" id="ga" value="1337" style="max-width:200px" /></div>
-      <div class="row"><label>b</label><input type="text" id="gb" value="42" style="max-width:200px" /></div>
-      <div class="toolbar">
-        <button onclick="tom.gf('add')">a+b</button>
-        <button onclick="tom.gf('sub')">a-b</button>
-        <button onclick="tom.gf('mul')">a*b</button>
-        <button onclick="tom.gf('pow')">a^b</button>
-        <button onclick="tom.gf('inv')">a^-1</button>
-      </div>
-      <div class="out" id="gfOut">-</div>
-    </div>
-
-    <!-- SHA-256 -->
-    <div class="card">
-      <h2>SHA-256 Seal</h2>
-      <div class="row"><input type="text" id="shaIn" value="twin-o-matic generation seal" /></div>
-      <div class="toolbar"><button class="primary" onclick="tom.hash()">Hash</button></div>
-      <div class="out" id="shaOut">-</div>
-      <div class="meta">Pure JS SHA-256. Used to WORM-seal each TOM generation.</div>
+    <div class="terminal" id="term"></div>
+    <div class="input-bar">
+      <input type="text" id="prompt" placeholder="describe a scene or ask anything..." disabled />
+      <button id="runBtn" disabled onclick="tom.infer()">run</button>
     </div>
   </div>
+</div>
 
-  <!-- WORM Chain -->
-  <div class="card">
-    <h2>WORM Chain</h2>
-    <div class="out" id="wormOut">No seals yet. Run TOM to generate.</div>
-  </div>
-</main>
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <script type="module">
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
-import { gfAdd, gfSub, gfMul, gfPow, gfInv, sha256, wormSeal, wormChain, P } from './src/engine.mjs';
 
+// ═══════════════════════════════════════════════════════
+// 3D ENGINE
+// ═══════════════════════════════════════════════════════
+class SceneEngine {
+  constructor(container) {
+    this.objects = [];
+    this.spinning = true;
+    this.wireframeMode = false;
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x080c14);
+    this.scene.fog = new THREE.FogExp2(0x080c14, 0.015);
+
+    this.camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+    this.camera.position.set(5, 4, 8);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(this.renderer.domElement);
+
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+
+    // Lighting
+    const ambient = new THREE.AmbientLight(0x404060, 0.5);
+    this.scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 1);
+    dir.position.set(5, 10, 7);
+    this.scene.add(dir);
+    const point = new THREE.PointLight(0x5ad1c4, 0.8, 20);
+    point.position.set(-3, 5, -3);
+    this.scene.add(point);
+
+    // Grid
+    const grid = new THREE.GridHelper(20, 20, 0x1f2a3a, 0x1f2a3a);
+    this.scene.add(grid);
+
+    // Resize
+    window.addEventListener('resize', () => {
+      this.camera.aspect = container.clientWidth / container.clientHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    this.clock = new THREE.Clock();
+    this.frameCount = 0;
+    this.lastFpsUpdate = 0;
+    this.animate();
+  }
+
+  animate() {
+    requestAnimationFrame(() => this.animate());
+    const t = this.clock.getElapsedTime();
+
+    if (this.spinning) {
+      this.objects.forEach((obj, i) => {
+        obj.rotation.y = t * (0.5 + i * 0.1);
+        obj.rotation.x = Math.sin(t * 0.3 + i) * 0.2;
+        obj.position.y = obj.userData.baseY + Math.sin(t * 0.8 + i * 0.7) * 0.3;
+      });
+    }
+
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+
+    this.frameCount++;
+    if (t - this.lastFpsUpdate > 0.5) {
+      document.getElementById('fpsCounter').textContent = `${Math.round(this.frameCount / (t - this.lastFpsUpdate))} fps`;
+      this.frameCount = 0;
+      this.lastFpsUpdate = t;
+    }
+    document.getElementById('sceneInfo').textContent = `objects: ${this.objects.length}`;
+  }
+
+  getMaterial(color, emissive) {
+    if (this.wireframeMode) {
+      return new THREE.MeshBasicMaterial({ color, wireframe: true });
+    }
+    return new THREE.MeshStandardMaterial({
+      color,
+      emissive: emissive || color,
+      emissiveIntensity: 0.15,
+      metalness: 0.3,
+      roughness: 0.4
+    });
+  }
+
+  addBox(opts = {}) {
+    const w = opts.width || 1, h = opts.height || 1, d = opts.depth || 1;
+    const color = opts.color || this.randomColor();
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = this.getMaterial(color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(opts.x || 0, opts.y || 1, opts.z || 0);
+    mesh.userData.baseY = mesh.position.y;
+    this.scene.add(mesh);
+    this.objects.push(mesh);
+    return `box added at (${mesh.position.x}, ${mesh.position.y}, ${mesh.position.z}) color=${color}`;
+  }
+
+  addSphere(opts = {}) {
+    const r = opts.radius || 0.7;
+    const color = opts.color || this.randomColor();
+    const geo = new THREE.SphereGeometry(r, 32, 32);
+    const mat = this.getMaterial(color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(opts.x || 0, opts.y || 1.5, opts.z || 0);
+    mesh.userData.baseY = mesh.position.y;
+    this.scene.add(mesh);
+    this.objects.push(mesh);
+    return `sphere added radius=${r} at (${mesh.position.x}, ${mesh.position.y}, ${mesh.position.z}) color=${color}`;
+  }
+
+  addCylinder(opts = {}) {
+    const r = opts.radius || 0.5, h = opts.height || 2;
+    const color = opts.color || this.randomColor();
+    const geo = new THREE.CylinderGeometry(r, r, h, 32);
+    const mat = this.getMaterial(color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(opts.x || 0, opts.y || 1, opts.z || 0);
+    mesh.userData.baseY = mesh.position.y;
+    this.scene.add(mesh);
+    this.objects.push(mesh);
+    return `cylinder added radius=${r} height=${h} color=${color}`;
+  }
+
+  addTorus(opts = {}) {
+    const r = opts.radius || 1, tube = opts.tube || 0.3;
+    const color = opts.color || this.randomColor();
+    const geo = new THREE.TorusGeometry(r, tube, 16, 48);
+    const mat = this.getMaterial(color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(opts.x || 0, opts.y || 2, opts.z || 0);
+    mesh.userData.baseY = mesh.position.y;
+    this.scene.add(mesh);
+    this.objects.push(mesh);
+    return `torus added radius=${r} tube=${tube} color=${color}`;
+  }
+
+  addCone(opts = {}) {
+    const r = opts.radius || 0.6, h = opts.height || 1.5;
+    const color = opts.color || this.randomColor();
+    const geo = new THREE.ConeGeometry(r, h, 32);
+    const mat = this.getMaterial(color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(opts.x || 0, opts.y || 1, opts.z || 0);
+    mesh.userData.baseY = mesh.position.y;
+    this.scene.add(mesh);
+    this.objects.push(mesh);
+    return `cone added radius=${r} height=${h} color=${color}`;
+  }
+
+  addParticles(opts = {}) {
+    const count = opts.count || 200;
+    const spread = opts.spread || 8;
+    const color = opts.color || '#5ad1c4';
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i++) positions[i] = (Math.random() - 0.5) * spread;
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({ color, size: 0.05, transparent: true, opacity: 0.8 });
+    const points = new THREE.Points(geo, mat);
+    points.userData.baseY = 0;
+    this.scene.add(points);
+    this.objects.push(points);
+    return `particle system added: ${count} particles, spread=${spread}`;
+  }
+
+  addLight(opts = {}) {
+    const color = opts.color || '#ffffff';
+    const intensity = opts.intensity || 1;
+    const light = new THREE.PointLight(color, intensity, opts.distance || 15);
+    light.position.set(opts.x || 0, opts.y || 4, opts.z || 0);
+    this.scene.add(light);
+    // Visible helper
+    const helper = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 8, 8),
+      new THREE.MeshBasicMaterial({ color })
+    );
+    helper.position.copy(light.position);
+    helper.userData.baseY = helper.position.y;
+    this.scene.add(helper);
+    this.objects.push(helper);
+    return `point light added at (${opts.x||0}, ${opts.y||4}, ${opts.z||0}) intensity=${intensity}`;
+  }
+
+  setBackground(color) {
+    this.scene.background = new THREE.Color(color);
+    return `background set to ${color}`;
+  }
+
+  reset() {
+    this.objects.forEach(obj => this.scene.remove(obj));
+    this.objects = [];
+    return 'scene cleared';
+  }
+
+  toggleSpin() { this.spinning = !this.spinning; return `spin: ${this.spinning}`; }
+
+  toggleWireframe() {
+    this.wireframeMode = !this.wireframeMode;
+    this.objects.forEach(obj => {
+      if (obj.material) obj.material.wireframe = this.wireframeMode;
+    });
+    return `wireframe: ${this.wireframeMode}`;
+  }
+
+  explode() {
+    this.objects.forEach((obj, i) => {
+      const angle = (i / this.objects.length) * Math.PI * 2;
+      const dist = 3 + Math.random() * 3;
+      obj.position.x = Math.cos(angle) * dist;
+      obj.position.z = Math.sin(angle) * dist;
+      obj.userData.baseY = obj.position.y;
+    });
+    return `exploded ${this.objects.length} objects outward`;
+  }
+
+  screenshot() {
+    this.renderer.render(this.scene, this.camera);
+    const url = this.renderer.domElement.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = 'twin-o-matic-scene.png'; a.click();
+    return 'screenshot saved';
+  }
+
+  randomColor() {
+    const colors = ['#5ad1c4', '#a78bfa', '#f59e0b', '#ef4444', '#10b981', '#ec4899', '#06b6d4', '#f97316'];
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// TOOL SYSTEM
+// ═══════════════════════════════════════════════════════
+const TOOLS_DESCRIPTION = `You have tools to create 3D scenes. When the user asks you to create or modify visuals, output tool calls using this exact format — one per line:
+
+TOOL:add_box {"width":1,"height":1,"depth":1,"x":0,"y":1,"z":0,"color":"#5ad1c4"}
+TOOL:add_sphere {"radius":0.7,"x":2,"y":1.5,"z":0,"color":"#a78bfa"}
+TOOL:add_cylinder {"radius":0.5,"height":2,"x":-2,"y":1,"z":0,"color":"#f59e0b"}
+TOOL:add_torus {"radius":1,"tube":0.3,"x":0,"y":2,"z":-2,"color":"#ec4899"}
+TOOL:add_cone {"radius":0.6,"height":1.5,"x":1,"y":1,"z":2,"color":"#10b981"}
+TOOL:add_particles {"count":300,"spread":10,"color":"#5ad1c4"}
+TOOL:add_light {"x":3,"y":5,"z":2,"color":"#ffffff","intensity":1.5}
+TOOL:set_background {"color":"#1a0a2e"}
+TOOL:reset_scene {}
+
+Rules:
+- Output TOOL: lines to create 3D objects. They execute immediately.
+- Spread objects across the scene (vary x, z between -4 and 4).
+- Use vibrant colors. Be creative with arrangements.
+- You can also explain what you're building in plain text.
+- If the user just asks a question (not about visuals), answer normally without tools.`;
+
+// ═══════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════
 class TwinOMatic {
   constructor() {
     this.engine = null;
+    this.scene3d = null;
     this.ready = false;
-    this.boot();
+    this.init();
   }
 
-  log(id, text, append = true) {
-    const el = document.getElementById(id);
-    if (append) el.textContent += text + '\n';
-    else el.textContent = text;
-    el.scrollTop = el.scrollHeight;
+  log(text, type = 'sys') {
+    const term = document.getElementById('term');
+    const line = document.createElement('div');
+    line.className = `line ${type}`;
+    line.textContent = text;
+    term.appendChild(line);
+    term.scrollTop = term.scrollHeight;
   }
 
-  async boot() {
-    const loadLog = document.getElementById('loadLog');
-    const loadBar = document.getElementById('loadBar');
+  async init() {
+    // Init 3D scene
+    this.scene3d = new SceneEngine(document.getElementById('viewport'));
+    this.log('3D engine initialized (Three.js r128)');
 
     // Detect WebGPU
     if (navigator.gpu) {
@@ -189,51 +438,44 @@ class TwinOMatic {
       if (adapter) {
         const info = await adapter.requestAdapterInfo?.() || {};
         document.getElementById('gpuDot').className = 'dot on';
-        document.getElementById('gpuLabel').textContent = `WebGPU: ${info.description || info.vendor || 'ready'}`;
+        document.getElementById('gpuLabel').textContent = `WebGPU: ${(info.description || info.vendor || 'ready').slice(0, 20)}`;
       }
     } else {
       document.getElementById('gpuDot').className = 'dot off';
-      document.getElementById('gpuLabel').textContent = 'WebGPU: not available (needs Chrome/Edge)';
-      this.log('loadLog', 'ERROR: WebGPU not available. Need Chrome 113+ or Edge 113+.', false);
+      document.getElementById('gpuLabel').textContent = 'WebGPU: unavailable';
+      this.log('WebGPU not available — need Chrome/Edge 113+', 'err');
       return;
     }
 
-    // Load model
+    // Load WebLLM
+    this.log('Loading Llama 3.2 1B into GPU...');
+    const bar = document.getElementById('loadBar');
+
     try {
       this.engine = await webllm.CreateMLCEngine(
         "Llama-3.2-1B-Instruct-q4f16_1-MLC",
         {
-          initProgressCallback: (progress) => {
-            const pct = Math.round((progress.progress || 0) * 100);
-            loadBar.style.width = pct + '%';
-            loadLog.textContent = progress.text || 'Loading...';
+          initProgressCallback: (p) => {
+            bar.style.width = Math.round((p.progress || 0) * 100) + '%';
+            if (p.text) this.log(p.text);
           }
         }
       );
 
       document.getElementById('modelDot').className = 'dot on';
-      document.getElementById('modelLabel').textContent = 'Model: Llama-3.2-1B-q4f16';
-      loadLog.textContent = 'Model loaded. Inference ready.';
-      loadBar.style.width = '100%';
-
+      document.getElementById('modelLabel').textContent = 'Llama-3.2-1B';
+      bar.style.width = '100%';
+      this.log('Model loaded. LLM has 3D tools available.');
+      this.log('Try: "create a solar system" or "build a city skyline"');
+      this.log('');
+      this.ready = true;
       document.getElementById('prompt').disabled = false;
       document.getElementById('runBtn').disabled = false;
-      document.getElementById('tomRun').disabled = false;
-      this.ready = true;
-
-      document.getElementById('chatOut').textContent = 'Ready. Type a prompt and hit run.\n';
-      document.getElementById('tomOut').textContent = 'Model loaded. Enter a task and hit Run TOM.\n';
-
-      // Enter key
-      document.getElementById('prompt').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') this.infer();
-      });
+      document.getElementById('prompt').addEventListener('keydown', e => { if (e.key === 'Enter') this.infer(); });
 
     } catch (err) {
       document.getElementById('modelDot').className = 'dot off';
-      document.getElementById('modelLabel').textContent = 'Model: FAILED';
-      loadLog.textContent = 'Failed: ' + err.message;
-      document.getElementById('chatOut').textContent = 'Model failed to load: ' + err.message;
+      this.log('Model load failed: ' + err.message, 'err');
     }
   }
 
@@ -244,146 +486,93 @@ class TwinOMatic {
     if (!text) return;
     input.value = '';
 
-    const out = document.getElementById('chatOut');
-    out.textContent += `\n> ${text}\n`;
-
+    this.log('> ' + text, 'usr');
     document.getElementById('runBtn').disabled = true;
-    const t0 = performance.now();
 
+    const t0 = performance.now();
     try {
       const response = await this.engine.chat.completions.create({
         messages: [
-          { role: "system", content: "You are a sovereign AI agent running locally in a browser via WebGPU. Be concise and technical." },
+          { role: "system", content: `You are a sovereign AI agent with a live 3D scene. You can create animated 3D visuals by calling tools.\n\n${TOOLS_DESCRIPTION}` },
           { role: "user", content: text }
         ],
-        temperature: 0.7,
-        max_tokens: 512,
+        temperature: 0.8,
+        max_tokens: 600,
         stream: true
       });
 
       let full = '';
       let tokens = 0;
-      out.textContent += '\n';
       for await (const chunk of response) {
         const delta = chunk.choices[0]?.delta?.content || '';
         full += delta;
         tokens++;
-        out.textContent = out.textContent.replace(/\n$/, '') + delta;
-        out.scrollTop = out.scrollHeight;
       }
-      out.textContent += '\n';
 
       const ms = performance.now() - t0;
       const tps = (tokens / (ms / 1000)).toFixed(1);
       document.getElementById('perfLabel').textContent = `${tps} tok/s`;
-      out.textContent += `[${tokens} tokens | ${Math.round(ms)}ms | ${tps} tok/s]\n`;
+
+      // Parse response — execute tools, display text
+      const lines = full.split('\n');
+      let toolsExecuted = 0;
+      for (const line of lines) {
+        if (line.startsWith('TOOL:')) {
+          const result = this.executeTool(line);
+          if (result) {
+            this.log(`  ${line.slice(0, 60)}`, 'tool');
+            this.log(`  → ${result}`, 'tool');
+            toolsExecuted++;
+          }
+        } else if (line.trim()) {
+          this.log(line, 'llm');
+        }
+      }
+
+      this.log(`[${tokens} tok | ${Math.round(ms)}ms | ${tps} tok/s | ${toolsExecuted} tools]`, 'perf');
 
     } catch (err) {
-      out.textContent += `ERROR: ${err.message}\n`;
+      this.log('Error: ' + err.message, 'err');
     }
 
     document.getElementById('runBtn').disabled = false;
-    out.scrollTop = out.scrollHeight;
+    this.log('');
   }
 
-  async runTOM() {
-    if (!this.ready) return;
-    const task = document.getElementById('tomTask').value.trim();
-    const gens = parseInt(document.getElementById('tomGens').value) || 3;
-    if (!task) return;
-
-    document.getElementById('tomRun').disabled = true;
-    const out = document.getElementById('tomOut');
-    const bar = document.getElementById('tomBar');
-    out.textContent = `TOM | task: "${task}" | generations: ${gens}\n\n`;
-
-    let lessonAccum = '';
-
-    for (let g = 1; g <= gens; g++) {
-      bar.style.width = `${((g - 0.5) / gens) * 100}%`;
-      out.textContent += `[gen ${g}/${gens}] running inner loop...\n`;
-      out.scrollTop = out.scrollHeight;
-
-      const innerPrompt = lessonAccum
-        ? `Task: ${task}\n\nPrevious lessons learned:\n${lessonAccum}\n\nProduce the best solution. End with LESSON: <one sentence about what you learned>.`
-        : `Task: ${task}\n\nProduce a solution. End with LESSON: <one sentence about what you learned>.`;
-
-      try {
-        const t0 = performance.now();
-        const resp = await this.engine.chat.completions.create({
-          messages: [
-            { role: "system", content: "You are an AI executing tasks in a recursive self-improvement loop. Each generation you get lessons from prior attempts. Improve each time. Always end your response with LESSON: <insight>." },
-            { role: "user", content: innerPrompt }
-          ],
-          temperature: 0.7 - (g * 0.05), // cool down over generations
-          max_tokens: 300
-        });
-
-        const answer = resp.choices[0].message.content;
-        const ms = performance.now() - t0;
-        const tokens = answer.split(' ').length;
-
-        // Extract lesson
-        const lessonMatch = answer.match(/LESSON:\s*(.+)/i);
-        const lesson = lessonMatch ? lessonMatch[1].trim() : 'no explicit lesson';
-        lessonAccum += `- gen ${g}: ${lesson}\n`;
-
-        // WORM seal
-        const record = wormSeal({ type: 'tom-gen', generation: g, task: task.slice(0, 60), tokens, ms: Math.round(ms), lesson });
-
-        out.textContent += `  response: ${answer.slice(0, 120)}...\n`;
-        out.textContent += `  lesson: ${lesson}\n`;
-        out.textContent += `  seal: ${record.seal.slice(0, 20)}... | ${tokens} tok | ${Math.round(ms)}ms\n\n`;
-
-      } catch (err) {
-        out.textContent += `  ERROR: ${err.message}\n\n`;
-      }
-
-      bar.style.width = `${(g / gens) * 100}%`;
-      out.scrollTop = out.scrollHeight;
-    }
-
-    out.textContent += `TOM complete. ${gens} generations sealed.\n`;
-    this.renderWorm();
-    document.getElementById('tomRun').disabled = false;
-  }
-
-  clearTOM() {
-    document.getElementById('tomOut').textContent = 'Cleared.\n';
-    document.getElementById('tomBar').style.width = '0%';
-  }
-
-  renderWorm() {
-    const chain = wormChain();
-    if (!chain.length) { document.getElementById('wormOut').textContent = 'No seals yet.'; return; }
-    document.getElementById('wormOut').textContent = chain.map(e =>
-      `[${e.idx}] gen-${e.generation || '?'} | ${e.lesson || '-'} | seal: ${e.seal.slice(0, 24)}...`
-    ).join('\n');
-  }
-
-  // Goldilocks
-  gf(op) {
+  executeTool(line) {
     try {
-      const a = BigInt(document.getElementById('ga').value.trim());
-      const b = BigInt(document.getElementById('gb').value.trim());
-      let result;
-      switch(op) {
-        case 'add': result = gfAdd(a, b); break;
-        case 'sub': result = gfSub(a, b); break;
-        case 'mul': result = gfMul(a, b); break;
-        case 'pow': result = gfPow(a, b); break;
-        case 'inv': result = gfInv(a); break;
+      const match = line.match(/^TOOL:(\w+)\s*(\{.*\})?\s*$/);
+      if (!match) return null;
+      const [, name, argsStr] = match;
+      const args = argsStr ? JSON.parse(argsStr) : {};
+
+      switch (name) {
+        case 'add_box': return this.scene3d.addBox(args);
+        case 'add_sphere': return this.scene3d.addSphere(args);
+        case 'add_cylinder': return this.scene3d.addCylinder(args);
+        case 'add_torus': return this.scene3d.addTorus(args);
+        case 'add_cone': return this.scene3d.addCone(args);
+        case 'add_particles': return this.scene3d.addParticles(args);
+        case 'add_light': return this.scene3d.addLight(args);
+        case 'set_background': return this.scene3d.setBackground(args.color);
+        case 'reset_scene': return this.scene3d.reset();
+        default: return `unknown tool: ${name}`;
       }
-      document.getElementById('gfOut').textContent = result.toString();
     } catch (e) {
-      document.getElementById('gfOut').textContent = 'error: ' + e.message;
+      return `tool error: ${e.message}`;
     }
   }
 
-  // SHA-256
-  hash() {
-    const input = document.getElementById('shaIn').value;
-    document.getElementById('shaOut').textContent = sha256(input);
+  sceneCmd(cmd) {
+    let result;
+    switch (cmd) {
+      case 'reset': result = this.scene3d.reset(); break;
+      case 'spin': result = this.scene3d.toggleSpin(); break;
+      case 'wireframe': result = this.scene3d.toggleWireframe(); break;
+      case 'explode': result = this.scene3d.explode(); break;
+      case 'screenshot': result = this.scene3d.screenshot(); break;
+    }
+    if (result) this.log(result, 'tool');
   }
 }
 
