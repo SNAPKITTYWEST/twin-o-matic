@@ -21,10 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci && npm test
+      - name: Stage public site only
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -R frontend _site/frontend
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

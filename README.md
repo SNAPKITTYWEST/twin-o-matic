@@ -11,7 +11,7 @@
 
 Twin-O-Matic is a browser-based AI agent with tool use. It runs **Llama 3.2 1B** entirely in your GPU via WebLLM/WebGPU and gives the model tools to create **live animated 3D scenes** in real-time.
 
-Open the page. Model loads into VRAM. Type "create a solar system" and watch it appear.
+Open the page and type "create a solar system" to use a template immediately. Click **Load local AI** when you want custom model-generated scenes. The model is an optional download.
 
 **No server. No API keys. No npm. No install. Just a URL.**
 
@@ -52,9 +52,8 @@ Open the page. Model loads into VRAM. Type "create a solar system" and watch it 
 ### Browser LLM (WebGPU)
 - **Llama 3.2 1B Instruct** quantized to q4f16 — runs entirely client-side
 - Model weights download once, cached by browser (~700MB)
-- Streaming inference with live tok/s counter
-- ~25-120 tok/s depending on GPU
-- Zero external API calls — all computation is local
+- Streaming inference with completion-token counts when supplied by WebLLM
+- Inference runs locally; JavaScript and model weights download from external hosts
 
 ### 3D Tool Use
 The LLM has tools to create and manipulate a live Three.js scene:
@@ -96,7 +95,7 @@ Any prompt containing "create", "build", "make", "show", "generate", or "draw" a
 - **Screenshot** — save current frame as PNG
 
 ### Animation
-All objects float and spin automatically:
+Spin is off initially to keep construction positions stable. Toggle Spin enables preview animation:
 - Y-axis rotation at varying speeds
 - Sinusoidal hover (bob up and down)
 - Each object offset in phase for organic movement
@@ -105,19 +104,19 @@ All objects float and spin automatically:
 
 ## How It Works
 
-1. Page loads → WebGPU adapter detected → model weights stream into GPU
+1. Page loads → templates and WebGL viewport are ready; Load local AI checks WebGPU and downloads the model
 2. User types prompt → sent to Llama 3.2 1B with tool-use system prompt
 3. Model outputs `TOOL:` lines → parsed and executed against Three.js scene
 4. If model outputs only text → scene detection fires template as fallback
 5. Objects appear in viewport with animation
 
-The system prompt includes few-shot examples so the model knows the exact format. The template fallback ensures visuals always appear for scene-creation requests regardless of model output quality.
+The system prompt includes few-shot examples so the model knows the exact format. Recognized scene requests use a clearly labeled template when no valid model tools are produced. Other prompts request local AI.
 
 ---
 
 ## Requirements
 
-- **Chrome 113+** or **Edge 113+** (WebGPU required)
+- A browser with WebGL for templates; WebGPU is additionally required for local AI
 - **GPU with 2GB+ VRAM** (model is ~700MB quantized)
 - That's it. No Node.js. No Python. No server.
 
@@ -281,3 +280,18 @@ http://www.apache.org/licenses/LICENSE-2.0
 ---
 
 Built with WebLLM + Three.js + WebGPU. No cloud. No telemetry. Sovereign inference.
+
+
+## Builder integration and verification
+
+`npm install` then `npm start` serves http://127.0.0.1:8080. `npm test` runs command tests; `npm run test:browser` runs Chrome regression tests. The renderer uses Three.js WebGL; WebGPU powers optional WebLLM inference (pinned 0.2.85, f16 or f32 chosen from adapter capability).
+
+The small robot represents the builder in the preview. **Export build** downloads `twin-builder.json`; **Import build** validates and restores it. Export includes boxes, spheres, cylinders, cones and tori. Particles, lights and spin are preview effects. Commands are bounded data; model output is never evaluated as JavaScript.
+
+In the matching Repoverse checkout, launch with:
+
+```powershell
+.\tools\Start-Repoverse3D.ps1 -EngineRoot "C:\Program Files\Epic Games\UE_5.6" -BuildPlan "$env:USERPROFILE\Downloads\twin-builder.json"
+```
+
+Replace EngineRoot with your installed Unreal location. The launcher imports through the authenticated local service; browser pages cannot call that service directly. Shapes become voxel blocks, colors map to existing material families, and shapes smaller than the voxel grid can disappear. The plan origin defaults to (0,9,0), with Y upward. Edit its origin before launch to choose placement. F5 saves blocks and builder identity. Unreal compilation/playtesting and actual local model inference must be verified on compatible hardware; the automated browser tests cover templates, error recovery and mocked inference control.
